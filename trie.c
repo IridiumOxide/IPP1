@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "trie.h"
 
 #define ALPHABET_SIZE 26   // all small english letters
@@ -69,6 +70,7 @@ Node* node_construct(char* parent_label, Node* parent, int id){
     for (int i = 0; i < ALPHABET_SIZE; ++i){
         node->path[i] = get_edge(NULL, NULL);
     }
+    node_count++;
     return node;
 }
 
@@ -81,8 +83,8 @@ void node_destruct(Node* node){
             free(node->path[i].label);
         }
         free(node);
-        node = NULL;
     }
+    node_count--;
 }
 
 
@@ -94,6 +96,7 @@ Node* get_parent(Node* node){
 // initialize the global tree if it has no root (number of nodes == 0)
 void init(){
     if (tree == NULL){
+        printf("INITIALIZING TRIE\n");
         tree = node_construct(NULL, NULL, -1);
         node_count = 1;
     }
@@ -121,21 +124,36 @@ void remove_edge(Node* parent, char first_letter){
     parent->path[letter_number].label = NULL;
     parent->path[letter_number].target = NULL;
     parent->child_count--;
-    //ZAIFOWAC, ¯E JAK MA 1 DZIECKO TO PAPA
-    // TODO
 }
+
 
 //  recursively clear a tree represented by a given node.
 void clear_node(Node* node){
     if (node != NULL){
+        printf("Clearing shit\n");
         for (int i = 0; i < ALPHABET_SIZE; ++i){
             clear_node(node->path[i].target);
         }
         node_destruct(node);
-        node_count--;
     }
 }
 
+
+// reverse a string
+void reverse_string(char* a_string){
+    int ibegin = 0;
+    int iend = strlen(a_string) - 1;
+    while (ibegin < iend){
+        // swap letters
+        a_string[ibegin] ^= a_string[iend];
+        a_string[iend] ^= a_string[ibegin];
+        a_string[ibegin] ^= a_string[iend];
+        ++ibegin;
+        --iend;
+    }
+}
+
+// insert a word into the tree. Returns -1 on fail, id otherwise
 int insert(char* word){
     // if the tree is empty, insert will succeed, so we can use init()
     init();
@@ -151,11 +169,13 @@ int insert(char* word){
         if (index == word_l){
             // current node represents the word we're trying to insert
             if (current_node->id == -1){
+                printf("Transition node changed to regular node\n");
                 current_node->id = next_id();
                 full_word[current_node->id] = current_node;
                 return current_node->id;
             }
             else{
+                printf("Already inserted\n");
                 // the word has already been inserted
                 return -1;
             }
@@ -166,6 +186,7 @@ int insert(char* word){
             letter_number = first_edge_letter - 'a';
             label = current_node->path[letter_number].label;
             if (label == NULL){
+                printf("Adding new edge and node\n");
                 Node* new_node = node_construct(word + index, current_node, next_id());
                 add_edge(current_node, word + index, new_node);
                 full_word[new_node->id] = new_node;
@@ -175,6 +196,7 @@ int insert(char* word){
                 for (int i = 0; i < strlen(label); ++i){
                     // either the word ends on this edge or we have nowhere to go
                     if (index == word_l){
+                        printf("Adding a new node and altering two edges\n");
                         // end of the word, create a node here
                         char* label_a = calloc(i + 1, sizeof(char));
                         strncpy(label_a, label, i);
@@ -192,9 +214,11 @@ int insert(char* word){
 
                         free(label_a);
                         free(label_b);
-                         
+
+                        return new_node->id;
                     }
                     else if (word[index] != label[i]){
+                        printf("Adding a transition node and the new node; changing edges and shit\n");
                         // nowhere to go; create new node and edge
                         char* label_a = calloc(i + 1, sizeof(char));
                         strncpy(label_a, label, i);
@@ -218,6 +242,7 @@ int insert(char* word){
                         free(label_a);
                         free(label_b);
 
+                        return new_node->id;
                     }
                     else{
                         // just follow the edge
@@ -230,9 +255,152 @@ int insert(char* word){
     }
 }
 
+
+// delete the word with given id. Returns -1 on fail, id otherwise
+int delete(int id){
+    if (full_word[id] == NULL){
+        // word with this id does not exist
+        return -1;
+    }
+    if (node_count == 2){
+        // we must delete the root, as the tree becomes empty.
+        clear_node(tree);
+        tree = NULL;
+        for (int i = 0; i < MAX_WORDS; i++){
+            full_word[i] = NULL;
+        }
+        return id;
+    }
+
+    Node* node = full_word[id];
+    Node* parent = node->parentE.target;
+    Edge child_edge = get_edge(NULL, NULL);
+    char first_letter = node->parentE.label[0]; // to delete parent's edge
+    full_word[id] = NULL;
+    node->id = -1;
+
+    if (node->child_count == 0){
+        // just delete the node and an edge from parent
+        remove_edge(parent, first_letter);
+        node_destruct(node);
+    }
+    else if (node->child_count == 1){
+        // unify the node with its parent
+        for (int i = 0; i < ALPHABET_SIZE; ++i){
+            if (node->path[i].target != NULL){
+                child_edge = node->path[i];
+                break;
+            }
+        }
+        strcpy(buffer, node->parentE.label);
+        strcat(buffer, child_edge.label);
+        remove_edge(parent, first_letter);
+        add_edge(parent, buffer, child_edge.target);
+        remove_edge(node, child_edge.label[0]);
+        node_destruct(node);
+        free(child_edge.target->parentE.label);
+        child_edge.target->parentE = get_edge(buffer, parent);
+    }
+
+    if (parent->id == -1 && parent->child_count < 2 && parent->parentE.target != NULL){
+        // we need to unify the parent with its own parent
+        Node* grandparent = parent->parentE.target;
+        first_letter = parent->parentE.label[0];
+        if (parent->child_count == 0){
+            remove_edge(grandparent, first_letter);
+            node_destruct(parent);
+            return id;
+        }
+
+        for (int i = 0; i < ALPHABET_SIZE; ++i){
+            if (parent->path[i].target != NULL){
+                child_edge = parent->path[i];
+                break;
+            }
+        }
+        strcpy(buffer, parent->parentE.label);
+        strcat(buffer, child_edge.label);
+        remove_edge(grandparent, first_letter);
+        add_edge(grandparent, buffer, child_edge.target);
+        remove_edge(parent, child_edge.label[0]);
+        node_destruct(parent);
+        free(child_edge.target->parentE.label);
+        child_edge.target->parentE = get_edge(buffer, grandparent);
+    }
+    // if child_count > 1 we just leave it as a transition node
+    return id;
+}
+
+
+// instert a chosen fragment of word with a given id. Returns -1 if
+//  that word with this id does not exist or if we can't insert the fragment
+int prev(int id, int start, int end){
+    if (full_word[id] == NULL || start > end){
+        return -1;
+    }
+    int index = 0;
+    Node* node = full_word[id];
+    // we will transfer the reversed word to the buffer, letter by letter.
+    while (1){
+        // we will break the loop after getting to the root
+        for (int i = strlen(node->parentE.label) - 1; i >= 0; --i){
+            buffer[index] = node->parentE.label[i];
+            ++index;
+        }
+        node = node->parentE.target;
+        if (node->parentE.target == NULL){
+            buffer[index] = 0;
+            break;
+        }
+    }
+    reverse_string(buffer);
+    if (end >= strlen(buffer)){
+        return -1;
+    }
+    char* new_word = calloc(end - start + 2, sizeof(char));
+    strncpy(new_word, buffer + start, end - start + 1);
+    int result = insert(new_word);
+    free(new_word);
+    return result;
+}
+
+
+// check if a pattern belongs to the tree. Returns 1 if it does, -1 otherwise
+int find(char* pattern){
+    int index = 0;
+    Node* node = tree;
+    int pattern_l = strlen(pattern);
+    while (1){
+        // we will break the null upon finding the pattern / reaching NULL
+        if (node == NULL){
+            return -1;
+        }
+
+        int first_letter = pattern[index];
+        int letter_number = first_letter - 'a';
+        char* label = node->path[letter_number].label;
+        if (label == NULL){
+            return -1;
+        }
+
+        for (int i = 0; i < strlen(label); ++i){
+            if (pattern[index] != label[i]){
+                return -1;
+            }
+            ++index;
+            if (index == pattern_l){
+                return 1;
+            }
+        }
+        node = node->path[letter_number].target;
+    }
+}
+
+
 // clear the whole tree
 void clear(){
     clear_node(tree);
+    tree = NULL;
     current_id = 0;
     for (int i = 0; i < MAX_WORDS; i++){
         full_word[i] = NULL;
@@ -243,4 +411,28 @@ void clear(){
 // returns the number of nodes
 int get_node_count(){
     return node_count;
+}
+
+
+
+// DEBUG DEBUG DEBUG DEBUG DEBUG
+void output_node(Node* node){
+    printf("-----------------------\n%d\n", node->id);
+    for (int i = 0; i < ALPHABET_SIZE; i++){
+        if (node->path[i].target != NULL){
+            printf("%d : %s\n", node->path[i].target->id, node->path[i].label);
+        }
+    }
+    if (node->parentE.target != NULL)
+        printf("parent: %d  ::  %s\n", node->parentE.target->id, node->parentE.label);
+    for (int i = 0; i < ALPHABET_SIZE; i++){
+        if (node->path[i].target != NULL){
+            output_node(node->path[i].target);
+        }
+    }
+}
+
+void output_tree(){
+    output_node(tree);
+    printf("---------------------------\n");
 }

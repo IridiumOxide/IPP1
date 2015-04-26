@@ -6,6 +6,7 @@
 
 int vmode = 0;
 
+
 int main(int argc, char* argv[]){
     if (argc > 2){
         puts("Error: too many parameters.\n");
@@ -20,6 +21,8 @@ int main(int argc, char* argv[]){
             return 1;
         }
     }
+
+    command = get_command();
 
     return 0;
 }
