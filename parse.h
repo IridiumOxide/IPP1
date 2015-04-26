@@ -1,7 +1,19 @@
+#pragma once
+
 typedef enum{
-    insert,
-    delete,
-    prev,
-    find,
-    clear
-} CommandType;
+    INSERT,
+    PREV,
+    DELETE,
+    FIND,
+    CLEAR,
+    END,
+    IGNORE
+} query_type;
+
+typedef struct{
+    query_type query;
+    char* string_arg;
+    int int_args[3];
+} Command;
+
+Command get_command();

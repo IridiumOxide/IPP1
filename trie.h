@@ -1,3 +1,5 @@
+#pragma once
+
 int insert(char* word);
 int prev(int id, int start, int end);
 int delete(int id);
