@@ -58,7 +58,7 @@ int parse_number(char* number){
 // returns a struct containing command enum and arguments based on file input.
 Command get_command(){
     Command new_command;
-
+    new_command.string_arg = NULL;
     // '$' - a word; '#' - a number; ' ' - 1 or more spaces; '!' - 0 or more spaces, then endline
     static const char* ins = "insert $!";
     static const char* pre = "prev # # #!";
@@ -107,23 +107,19 @@ Command get_command(){
         break;
     }
 
-    printf("Parsing %s\n", expression);
     for (int i = 0; i < strlen(expression); ++i){
-        printf("Hello, time for another round\n");
-        printf("Next character in expr is '%c'.\n", expression[i]);
-        if (is_a_space(expression[i]) == 1){
-            printf("Parsing whitespace... ");
+        if (expression[i] == ' '){
             if (is_a_space(buffer[index]) == -1){
                 new_command.query = IGNORE;
                 return new_command;
             }
-            while (is_a_space(buffer[index])){
+            ++index;
+
+            while (is_a_space(buffer[index]) == 1){
                 ++index;
             }
-            printf(" parsed!\n");
         }
         else if (expression[i] == '#'){
-            printf("Pasing a number...\n");
             char* number = calloc(7, sizeof(char));
             int number_length = 0;
             while (is_a_digit(buffer[index]) == 1){
@@ -146,10 +142,8 @@ Command get_command(){
             new_command.int_args[current_int_arg] = result;
             current_int_arg++;
             free(number);
-            printf("Parsed a number: %d\n", result);
         }
         else if (expression[i] == '$'){
-            printf("Starting word parser 3000\n");
             int word_begin = index;
             int word_length = 0;
             while (is_small_letter(buffer[index]) == 1){
@@ -167,20 +161,16 @@ Command get_command(){
                 new_command.string_arg[i] = buffer[index];
                 ++index;
             }
-            printf("Parsed a word: %s\n", new_command.string_arg);
         }
         else if (expression[i] == '!'){
-            printf("Parsing THE END\n");
-            while (is_a_space(buffer[index])){
+            while (is_a_space(buffer[index]) == 1){
                 ++index;
             }
             if (buffer[index] != '\n'){
                 new_command.query = IGNORE;
             }
-            printf("Parsed it\n");
         }
         else{
-            printf("Parsing expression %d - th letter\n", i);
             if (expression[i] == buffer[index]){
                 ++index;
             }
@@ -188,7 +178,6 @@ Command get_command(){
                 new_command.query = IGNORE;
                 return new_command;
             }
-            printf("Got it\n");
         }
     }
     return new_command;
