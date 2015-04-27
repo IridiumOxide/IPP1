@@ -82,6 +82,7 @@ int main(int argc, char* argv[]){
             printf("cleared\n");
             break;
         case END:
+	    clear();
             return 0;
             break;
         default:
@@ -89,7 +90,7 @@ int main(int argc, char* argv[]){
             break;
         }
         if (nodes_info == 1){
-            fprintf(stderr, "Nodes: %d\n", get_node_count());
+            fprintf(stderr, "nodes: %d\n", get_node_count());
         }
         free(command.string_arg);
     }

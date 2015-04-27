@@ -4,7 +4,7 @@ CFLAGS=-Wall -O2 -std=c11
 all: dictionary
 
 debug: dictionary.dbg
-	
+
 dictionary: dictionary.o parse.o trie.o
 	$(CC) -o dictionary dictionary.o parse.o trie.o $(CFLAGS)
 
@@ -18,8 +18,8 @@ trie.o: trie.c trie.h
 	$(CC) -c trie.c $(CFLAGS)
 
 dictionary.dbg: dictionary.o parse.o trie.o
-	$(CC) -g -o dictionary  dictionary.o parse.o trie.o $(CFLAGS)
-	
+	$(CC) -g -o dictionary.dbg dictionary.o parse.o trie.o $(CFLAGS)
+
 .PHONY: clean
 
 clean:

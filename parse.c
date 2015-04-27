@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include "parse.h"
 
-#define MAX_WORD_LENGTH 100001
+#define MAX_WORD_LENGTH 100500
 
 char buffer[MAX_WORD_LENGTH];
 
@@ -132,11 +132,13 @@ Command get_command(){
             // We don't accept numbers longer than 6 digits because they're too big anyway.
             if (number_length == 0 || number_length > 6 || (is_a_space(buffer[index]) == -1 && buffer[index] != '\n')){
                 new_command.query = IGNORE;
+                free(number);
                 return new_command;
             }
             int result = parse_number(number);
             if (result == -1){
                 new_command.query = IGNORE;
+                free(number);
                 return new_command;
             }
             new_command.int_args[current_int_arg] = result;

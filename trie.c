@@ -5,7 +5,7 @@
 
 #define ALPHABET_SIZE 26   // all small english letters
 #define MAX_WORDS 262144  // 2^18, based on maximum test file size
-#define MAX_WORD_LENGTH 100001
+#define MAX_WORD_LENGTH 100500
 
 typedef struct Edge Edge;
 typedef struct Node Node;
@@ -96,7 +96,6 @@ Node* get_parent(Node* node){
 // initialize the global tree if it has no root (number of nodes == 0)
 void init(){
     if (tree == NULL){
-        printf("INITIALIZING TRIE\n");
         tree = node_construct(NULL, NULL, -1);
         node_count = 1;
     }
@@ -130,7 +129,6 @@ void remove_edge(Node* parent, char first_letter){
 //  recursively clear a tree represented by a given node.
 void clear_node(Node* node){
     if (node != NULL){
-        printf("Clearing shit\n");
         for (int i = 0; i < ALPHABET_SIZE; ++i){
             clear_node(node->path[i].target);
         }
@@ -169,13 +167,11 @@ int insert(char* word){
         if (index == word_l){
             // current node represents the word we're trying to insert
             if (current_node->id == -1){
-                printf("Transition node changed to regular node\n");
                 current_node->id = next_id();
                 full_word[current_node->id] = current_node;
                 return current_node->id;
             }
             else{
-                printf("Already inserted\n");
                 // the word has already been inserted
                 return -1;
             }
@@ -186,7 +182,6 @@ int insert(char* word){
             letter_number = first_edge_letter - 'a';
             label = current_node->path[letter_number].label;
             if (label == NULL){
-                printf("Adding new edge and node\n");
                 Node* new_node = node_construct(word + index, current_node, next_id());
                 add_edge(current_node, word + index, new_node);
                 full_word[new_node->id] = new_node;
@@ -196,7 +191,6 @@ int insert(char* word){
                 for (int i = 0; i < strlen(label); ++i){
                     // either the word ends on this edge or we have nowhere to go
                     if (index == word_l){
-                        printf("Adding a new node and altering two edges\n");
                         // end of the word, create a node here
                         char* label_a = calloc(i + 1, sizeof(char));
                         strncpy(label_a, label, i);
@@ -218,7 +212,6 @@ int insert(char* word){
                         return new_node->id;
                     }
                     else if (word[index] != label[i]){
-                        printf("Adding a transition node and the new node; changing edges and shit\n");
                         // nowhere to go; create new node and edge
                         char* label_a = calloc(i + 1, sizeof(char));
                         strncpy(label_a, label, i);
@@ -258,7 +251,7 @@ int insert(char* word){
 
 // delete the word with given id. Returns -1 on fail, id otherwise
 int delete(int id){
-    if (full_word[id] == NULL){
+    if (id >= MAX_WORDS || full_word[id] == NULL){
         // word with this id does not exist
         return -1;
     }
@@ -411,28 +404,4 @@ void clear(){
 // returns the number of nodes
 int get_node_count(){
     return node_count;
-}
-
-
-
-// DEBUG DEBUG DEBUG DEBUG DEBUG
-void output_node(Node* node){
-    printf("-----------------------\n%d\n", node->id);
-    for (int i = 0; i < ALPHABET_SIZE; i++){
-        if (node->path[i].target != NULL){
-            printf("%d : %s\n", node->path[i].target->id, node->path[i].label);
-        }
-    }
-    if (node->parentE.target != NULL)
-        printf("parent: %d  ::  %s\n", node->parentE.target->id, node->parentE.label);
-    for (int i = 0; i < ALPHABET_SIZE; i++){
-        if (node->path[i].target != NULL){
-            output_node(node->path[i].target);
-        }
-    }
-}
-
-void output_tree(){
-    output_node(tree);
-    printf("---------------------------\n");
 }
