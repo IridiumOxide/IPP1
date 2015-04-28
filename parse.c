@@ -37,7 +37,7 @@ int is_a_digit(char x){
     }
 }
 
-
+// returns a number parsed from a string
 int parse_number(char* number){
     // number is guaranteed to contain only digits, and less than 8 of them.
     int result = 0;

@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// if nodes_info == 1 after completing a command, our program
+// writes the number of nodes to stderr.
 int nodes_info = 1;
 
 void ignore(){
