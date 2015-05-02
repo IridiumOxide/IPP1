@@ -1,40 +1,26 @@
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include "trie.h"
 
 #define ALPHABET_SIZE 26  // all small english letters
-#define MAX_WORDS 262144  // 2^18, based on maximum test file size
+#define MAX_WORDS 220000  // based on maximum test file size
 #define MAX_WORD_LENGTH 100500
 
-typedef struct Edge Edge;
 typedef struct Node Node;
 
 
-/* EDGE - represents an edge in the tree
-     label - character string represented by the edge
-     target - pointer to the child node the edge leads to 
-*/
-struct Edge{
-    char* label;
-    Node* target;
-};
-
-
 /* NODE - represents a node in the tree.
-     child_count - number of children of the node.
-     id - id given to the full word represented by this node;
+     label - label of an edge leading from this node's parent to itself
  -1 if the node does not represent a full word
-     path[x] - edge with label that begins on ('a' + x)
-     parentE - edge leading upwards, to reconstruct a word based on its ID.
-      (!) memory we keep the label in belongs to the parent edge; edges leading
-       downwards only point to it and need not to be freed when destroyed.
+     parent - target of an edge leading upwards, to reconstruct a word based on its ID.
+     id - id given to the full word represented by this node;
+     path[x] - target of an edge with label that begins on ('a' + x)
 */
 struct Node{
-    int child_count;
+    char* label;
+    Node* parent;
     int id;
-    Edge path[ALPHABET_SIZE];
-    Edge parentE;
+    Node* path[ALPHABET_SIZE];
 };
 
 
@@ -48,11 +34,15 @@ struct Node{
 // Global trie to use in this task
 Node* tree = NULL;
 
+// total number of nodes in the global tree
 int node_count = 0;
+
+// id to be given to the next inserted node, managed by next_id() function
 int current_id = 0;
 
 // full_word[x] is a pointer to a node representing a full word with id = x
 Node* full_word[MAX_WORDS];
+
 char buffer[MAX_WORD_LENGTH];
 
 
@@ -63,29 +53,21 @@ char buffer[MAX_WORD_LENGTH];
 
 
 
-// returns a copy of an edge with a given label and target
-Edge get_edge(char* label, Node* target){
-    Edge e;
-    if (label == NULL){
-        e.label = NULL;
-    }
-    else{
-        e.label = calloc(strlen(label) + 1, sizeof(char));
-        strcpy(e.label, label);
-    }
-    e.target = target;
-    return e;
-}
-
-
 // Create an empty node and return a pointer to it
 Node* node_construct(char* parent_label, Node* parent, int id){
     Node* node = malloc(sizeof(*node));
-    node->child_count = 0;
+    if (parent != NULL){
+        node->label = strdup(parent_label);
+    }
+    else{
+        node->label = NULL;
+    }
+    node->parent = parent;
+
     node->id = id;
-    node->parentE = get_edge(parent_label, parent);
+
     for (int i = 0; i < ALPHABET_SIZE; ++i){
-        node->path[i] = get_edge(NULL, NULL);
+        node->path[i] = NULL;
     }
     node_count++;
     return node;
@@ -95,15 +77,14 @@ Node* node_construct(char* parent_label, Node* parent, int id){
 // Free all memory used by a node
 void node_destruct(Node* node){
     if (node != NULL){
-        // we free only parent-edge label, as explained before.
-        free(node->parentE.label);
+        free(node->label);
         free(node);
     }
     node_count--;
 }
 
 
-// initialize the global tree if it has no root (number of nodes == 0)
+// initialize the global tree if it has no root
 void init(){
     if (tree == NULL){
         tree = node_construct(NULL, NULL, -1);
@@ -118,31 +99,46 @@ int next_id(){
 }
 
 
-// add and edge from parent to child with label.
-// we assume that child->parentE already exists and is correct.
+// add and edge from parent to child.
 void add_edge(Node* parent, Node* child){
-    char first_letter = child->parentE.label[0];
+    char first_letter = child->label[0];
     int letter_number = first_letter - 'a';
-    parent->path[letter_number].label = child->parentE.label;
-    parent->path[letter_number].target = child;
-    parent->child_count++;
+    parent->path[letter_number] = child;
 }
 
 
 // remove an edge whose label begins with first_letter from parent
 void remove_edge(Node* parent, char first_letter){
     int letter_number = first_letter - 'a';
-    parent->path[letter_number].label = NULL;
-    parent->path[letter_number].target = NULL;
-    parent->child_count--;
+    parent->path[letter_number] = NULL;
 }
 
 
-//  recursively clear a tree represented by a given node.
+// change the label and parent of a given node without modifying its other properties
+void change_parent_edge(Node* node, char* new_label, Node* parent){
+    free(node->label);
+    node->label = strdup(new_label);
+    node->parent = parent;
+}
+
+
+// return the number of a given node's children
+int child_count(Node* node){
+    int result = 0;
+    for (int i = 0; i < ALPHABET_SIZE; ++i){
+        if (node->path[i] != NULL){
+            ++result;
+        }
+    }
+    return result;
+}
+
+
+// recursively clear a tree represented by a given node.
 void clear_node(Node* node){
     if (node != NULL){
         for (int i = 0; i < ALPHABET_SIZE; ++i){
-            clear_node(node->path[i].target);
+            clear_node(node->path[i]);
         }
         node_destruct(node);
     }
@@ -162,7 +158,6 @@ void reverse_string(char* a_string){
         --iend;
     }
 }
-
 
 /* **********************
  * MAIN FUNCTIONS BELOW *
@@ -199,7 +194,11 @@ int insert(char* word){
             // edge section
             first_edge_letter = word[index];
             letter_number = first_edge_letter - 'a';
-            label = current_node->path[letter_number].label;
+            if(current_node->path[letter_number] != NULL){
+                label = current_node->path[letter_number]->label;
+            }else{
+                label = NULL;
+            }
             if (label == NULL){
                 // 1--w--2     ->       1--w--2
                 //                       \-v--3
@@ -221,14 +220,12 @@ int insert(char* word){
                         char* label_b = calloc(strlen(label) - i + 1, sizeof(char));
                         strcpy(label_b, label + i);
                         
-                        Node* next_node = current_node->path[letter_number].target;
+                        Node* next_node = current_node->path[letter_number];
                         Node* new_node = node_construct(label_a, current_node, next_id());
                         full_word[new_node->id] = new_node;
-                        free(next_node->parentE.label);
-                        next_node->parentE = get_edge(label_b, new_node);
+                        change_parent_edge(next_node, label_b, new_node);
                         add_edge(new_node, next_node);
-                        current_node->path[letter_number].label = new_node->parentE.label;
-                        current_node->path[letter_number].target = new_node;
+                        current_node->path[letter_number] = new_node;
 
                         free(label_a);
                         free(label_b);
@@ -245,13 +242,11 @@ int insert(char* word){
                         char* label_b = calloc(strlen(label) - i + 1, sizeof(char));
                         strcpy(label_b, label + i);
 
-                        Node* next_node = current_node->path[letter_number].target;
+                        Node* next_node = current_node->path[letter_number];
                         Node* transition_node = node_construct(label_a, current_node, -1);
-                        free(next_node->parentE.label);
-                        next_node->parentE = get_edge(label_b, transition_node);
+                        change_parent_edge(next_node, label_b, transition_node);
                         add_edge(transition_node, next_node);
-                        current_node->path[letter_number].label = transition_node->parentE.label;
-                        current_node->path[letter_number].target = transition_node;
+                        current_node->path[letter_number] = transition_node;
 
                         Node* new_node = node_construct(word + index, transition_node, next_id());
                         full_word[new_node->id] = new_node;
@@ -269,7 +264,7 @@ int insert(char* word){
                 }
             }
         }
-        current_node = current_node->path[letter_number].target;
+        current_node = current_node->path[letter_number];
     }
 }
 
@@ -284,8 +279,8 @@ int delete(int id){
         // we must delete the root, as the tree becomes empty.
         // detele root's child from id table:
         for (int i = 0; i < ALPHABET_SIZE; i++){
-            if(tree->path[i].target != NULL){
-                full_word[tree->path[i].target->id] = NULL;
+            if(tree->path[i] != NULL){
+                full_word[tree->path[i]->id] = NULL;
             }
         }
         clear_node(tree);
@@ -294,61 +289,59 @@ int delete(int id){
     }
 
     Node* node = full_word[id];
-    Node* parent = node->parentE.target;
-    Edge child_edge = get_edge(NULL, NULL);
-    char first_letter = node->parentE.label[0]; // to delete parent's edge
+    Node* parent = node->parent;
+    Node* child = NULL;
+    char first_letter = node->label[0]; // to delete parent's edge
     full_word[id] = NULL;
     node->id = -1;
 
-    if (node->child_count == 0){
+    if (child_count(node) == 0){
         // just delete the node and an edge from parent
         remove_edge(parent, first_letter);
         node_destruct(node);
     }
-    else if (node->child_count == 1){
+    else if (child_count(node) == 1){
         // unify the node with its parent
         for (int i = 0; i < ALPHABET_SIZE; ++i){
-            if (node->path[i].target != NULL){
-                child_edge = node->path[i];
+            if (node->path[i] != NULL){
+                child = node->path[i];
                 break;
             }
         }
-        strcpy(buffer, node->parentE.label);
-        strcat(buffer, child_edge.label);
+        strcpy(buffer, node->label);
+        strcat(buffer, child->label);
         remove_edge(parent, first_letter);
-        remove_edge(node, child_edge.label[0]);
+        remove_edge(node, child->label[0]);
         node_destruct(node);
-        free(child_edge.target->parentE.label);
-        child_edge.target->parentE = get_edge(buffer, parent);
-        add_edge(parent, child_edge.target);
+        change_parent_edge(child, buffer, parent);
+        add_edge(parent, child);
     }
+    // if child_count(node) > 1 we just leave it as a transition node
 
-    if (parent->id == -1 && parent->child_count < 2 && parent->parentE.target != NULL){
+    if (parent->id == -1 && child_count(parent) < 2 && parent->parent != NULL){
         // we need to unify the parent with its own parent
-        Node* grandparent = parent->parentE.target;
-        first_letter = parent->parentE.label[0];
-        if (parent->child_count == 0){
+        Node* grandparent = parent->parent;
+        first_letter = parent->label[0];
+        if (child_count(parent) == 0){
             remove_edge(grandparent, first_letter);
             node_destruct(parent);
             return id;
         }
 
         for (int i = 0; i < ALPHABET_SIZE; ++i){
-            if (parent->path[i].target != NULL){
-                child_edge = parent->path[i];
+            if (parent->path[i] != NULL){
+                child = parent->path[i];
                 break;
             }
         }
-        strcpy(buffer, parent->parentE.label);
-        strcat(buffer, child_edge.label);
+        strcpy(buffer, parent->label);
+        strcat(buffer, child->label);
         remove_edge(grandparent, first_letter);
-        remove_edge(parent, child_edge.label[0]);
+        remove_edge(parent, child->label[0]);
         node_destruct(parent);
-        free(child_edge.target->parentE.label);
-        child_edge.target->parentE = get_edge(buffer, grandparent);
-        add_edge(grandparent, child_edge.target);
+        change_parent_edge(child, buffer, grandparent);
+        add_edge(grandparent, child);
     }
-    // if child_count > 1 we just leave it as a transition node
     return id;
 }
 
@@ -364,12 +357,12 @@ int prev(int id, int start, int end){
     // we will transfer the reversed word to the buffer, letter by letter.
     while (1){
         // we will break the loop after getting to the root
-        for (int i = strlen(node->parentE.label) - 1; i >= 0; --i){
-            buffer[index] = node->parentE.label[i];
+        for (int i = strlen(node->label) - 1; i >= 0; --i){
+            buffer[index] = node->label[i];
             ++index;
         }
-        node = node->parentE.target;
-        if (node->parentE.target == NULL){
+        node = node->parent;
+        if (node->parent == NULL){
             buffer[index] = 0;
             break;
         }
@@ -380,7 +373,7 @@ int prev(int id, int start, int end){
     }
     char* new_word = calloc(end - start + 2, sizeof(char));
     strncpy(new_word, buffer + start, end - start + 1);
-    // we have recreated the whole word, can we can insert it
+    // we have recreated the whole word, now we can insert it
     int result = insert(new_word);
     free(new_word);
     return result;
@@ -400,7 +393,10 @@ int find(char* pattern){
 
         int first_letter = pattern[index];
         int letter_number = first_letter - 'a';
-        char* label = node->path[letter_number].label;
+        char* label = NULL;
+        if(node->path[letter_number] != NULL){
+            label = node->path[letter_number]->label;
+        }
         if (label == NULL){
             return -1;
         }
@@ -414,7 +410,7 @@ int find(char* pattern){
                 return 1;
             }
         }
-        node = node->path[letter_number].target;
+        node = node->path[letter_number];
     }
 }
 

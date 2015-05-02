@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -O2 -std=c11
+CFLAGS=-Wall -O2 -std=gnu11
 
 all: dictionary
 

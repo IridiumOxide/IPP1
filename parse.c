@@ -59,6 +59,8 @@ int parse_number(char* number){
 Command get_command(){
     Command new_command;
     new_command.string_arg = NULL;
+    
+    // COMMAND TEMPLATES
     // '$' - a word; '#' - a number; ' ' - 1 or more spaces; '!' - 0 or more spaces, then endline
     static const char* ins = "insert $!";
     static const char* pre = "prev # # #!";
@@ -71,6 +73,7 @@ Command get_command(){
     int index = 0;
     int current_int_arg = 0;
     if (status == NULL){
+        // fgets read an EOF, end the program.
         new_command.query = END;
         return new_command;
     }

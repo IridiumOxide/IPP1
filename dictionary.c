@@ -32,7 +32,6 @@ int main(int argc, char* argv[]){
     }
 
     Command command;
-    command.string_arg = NULL;
     int result;
     // main loop: accept the command from parser and call one of the trie functions
     while (1){
